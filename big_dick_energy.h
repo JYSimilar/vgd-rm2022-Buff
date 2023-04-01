@@ -26,10 +26,10 @@ public:
 
 private:
     struct BuffPara {
-        int grayThreshold_RED = 70;                            //灰度二值化阈值-红色
-        int grayThreshold_BLUE = 60;                            //灰度二值化阈值-蓝色
-        int separationThreshold_RED = 70;                    //色彩分离二值化阈值-红色
-        int separationThreshold_BLUE = 70;                    //色彩分离二值化阈值-蓝色
+        int grayThreshold_RED = 30;                            //灰度二值化阈值-红色
+        int grayThreshold_BLUE = 90;                            //灰度二值化阈值-蓝色
+        int separationThreshold_RED = 20;                    //色彩分离二值化阈值-红色
+        int separationThreshold_BLUE = 120;                    //色彩分离二值化阈值-蓝色
         float imageBright_RED = -10;                         //亮度削减-红色
         float imageBright_BLUE = -10;                         //亮度削减-蓝色
         float imageBright_GRAY = -10;                         //亮度削减-灰度二值化
@@ -63,6 +63,15 @@ private:
     double radius = 0;                                          // 路径半径
     long double angle = 0, pre_angle = 0;                        // 当前扇叶角度
     long double w = 0;                                           // 两帧之间的角速度
+
+    double tx = 0.5;                                              // 预测时间
+
+    std::vector<clock_t> t_i;                                // 时间戳
+    std::vector<double> spd_i;                              // 时间戳对应转速
+
+    double ae , we , te;
+
+    int cnt_10 = 0;
 
 public:
     BigDickEnergy();

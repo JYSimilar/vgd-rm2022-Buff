@@ -8,7 +8,7 @@ find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # Eigen
-include_directories(/opt/homebrew/Cellar/eigen/3.4.0_1/include)
+include_directories(/opt/homebrew/Cellar/eigen3/3.4.0_1/include/eigen3)
 
 add_executable(rm2023_bigDickEnergy main.cpp
         big_dick_energy.cpp

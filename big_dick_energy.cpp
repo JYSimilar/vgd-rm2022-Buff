@@ -68,11 +68,10 @@ void BigDickEnergy::pretreatment(cv::Mat frame) {
 #endif
 
     bin = gray_bin & color_bin;
-    // cv::morphologyEx(bin, bin, cv::MORPH_CLOSE, m_element3);
+    cv::morphologyEx(bin, bin, cv::MORPH_CLOSE, m_element3);
 
-
-    cv::imshow("t",bin);
-    cv::waitKey(0);
+    cv::dilate(bin,bin,m_element2);
+    cv::erode(bin,bin,m_element1);
 
 }
 
@@ -172,7 +171,6 @@ void BigDickEnergy::findContours() {
                 if(Vvalue1[maxv1] > Vvalue2[maxv2] && Vvalue1[maxv1] > 0.4) {
                     findTarget = true;
                     if(hierarchy[i][2] > 0) {
-                        cv::imshow("t", testImg);
                         cv::RotatedRect rect_tmp = minAreaRect(contours[hierarchy[i][2]]);
                         rect_tmp.points(Pnt);
 
@@ -252,11 +250,37 @@ void BigDickEnergy::findContours() {
             preW = tmpW;
             angleDif = (fabs(angle - pre_angle)/2*PI);
             tmpW = angleDif / ((double)(vtx - pre) * 0.001);
-            if (fabs(tmpW - w) < 0.0023 || fabs(tmpW - preW) < 0.0023) {
+            if (fabs(tmpW - w) < 0.0017 || fabs(tmpW - preW) < 0.0017) {
                 w = tmpW;
-                std::cout << w << std::endl;
+                t_i.push_back(vtx);
+                spd_i.push_back(w);
+                ++cnt_10;
             }
-            predictor.changeIntoLine(angle);
+            if (cnt_10 > 40 && cnt_10 < 100) {
+                std::vector<double> answer = predictor.gaussNewton(t_i, spd_i);
+                if (!answer.empty()) {
+                    ae = answer[0], we = answer[1], te = answer[2];
+                    //ae = 0.98, we = 1.8, te = answer[2];
+                } else {
+                    std::cout << "no answer" << std::endl;
+                    return;
+                }
+            }
+//            std::vector<double> answer = predictor.gaussNewton(t_i, spd_i);
+//            if (!answer.empty()) {
+//                ae = answer[0], we = answer[1], te = answer[2];
+//            } else {
+//                std::cout << "no answer" << std::endl;
+//                return;
+//            }
+            double nxtAngle = angle + fabs(((- ae / we) * cos(we * (1. * vtx / CLOCKS_PER_SEC + tx - te)) + ((ae / we) * cos(we * (1. * vtx / CLOCKS_PER_SEC - te))) + (2.09 - ae) * tx));
+            prediction.y = (radius * sin(nxtAngle)) + centerR.y;
+            prediction.x = (radius * cos(nxtAngle)) + centerR.x;
+            if (cv::waitKey(30) == 27) {
+                t_i.clear();
+                spd_i.clear();
+                cnt_10 = 40;
+            }
         }
     }
 }
@@ -282,74 +306,73 @@ bool BigDickEnergy::Tracker() {
     cv::RotatedRect rect_tmp2;
 
     // 直接找，不用模板匹配，因为划定了ROI
-    if (!hierarchy.empty()) {
-        for(int i = 0; i >= 0; i = hierarchy[i][0]) {
-            // 找出轮廓最小正接矩形
-            rect_tmp2 = minAreaRect(contours[i]);
-            // 存矩形四点
-            cv::Point2f P[4];
-            rect_tmp2.points(P);
-
-            if(hierarchy[i][2] > 0) {
-                cv::RotatedRect rect_tmp = minAreaRect(contours[hierarchy[i][2]]);
-                rect_tmp.points(Pnt);
-                float width = rect_tmp.size.width;
-                float height = rect_tmp.size.height;
-                if (height > width) {
-                    std::swap(height, width);
-                }
-
-                centerP = rect_tmp.center;
-
-                // 修正追踪的击打点及装甲板轮廓
-                centerP.x += ROI.x;
-                centerP.y += ROI.y;
-                for (auto & j : Pnt) {
-                    j.x += ROI.x;
-                    j.y += ROI.y;
-                }
-
-                // 更新ROI
-                for (int j = 0; j < 4; ++j) {
-                    if (j == 0) ROI.width = getDistance(Pnt[j], Pnt[(j + 1) % 4]);
-                    else if (j == 1) ROI.height = getDistance(Pnt[j], Pnt[(j + 1) % 4]);
-                }
-                if (ROI.width < ROI.height) {
-                    std::swap(ROI.width, ROI.height);
-                }
-                ROI.width *= 2.5;
-                ROI.height *= 3.6;
-                ROI.x = centerP.x - ROI.width/2;
-                ROI.y = centerP.y - ROI.height/2;
-                if (ROI.x < 0) {
-                    ROI.width += ROI.x;
-                    ROI.x = 0;
-                }
-                if (ROI.y < 0) {
-                    ROI.height += ROI.y;
-                    ROI.y = 0;
-                }
-
-            }
-        }
-    } else {
+    if (hierarchy.empty()) {
         m_isTracking = false;
         return false;
     }
 
-    // debug
-    // 打击点
-    cv::circle(frame, centerP, 5, cv::Scalar(0, 0, 255), 2);
-    // 画出装甲位置，并更新ROI
-    for (int j = 0; j < 4; ++j) {
-        cv::line(frame, Pnt[j], Pnt[(j + 1) % 4], cv::Scalar(0, 255, 255), 3);
+    for(int i = 0; i >= 0; i = hierarchy[i][0]) {
+        // 找出轮廓最小正接矩形
+        rect_tmp2 = minAreaRect(contours[i]);
+        // 存矩形四点
+        cv::Point2f P[4];
+        rect_tmp2.points(P);
+
+        if(hierarchy[i][2] <= 0) continue;
+        cv::RotatedRect rect_tmp = minAreaRect(contours[hierarchy[i][2]]);
+        rect_tmp.points(Pnt);
+        float width = rect_tmp.size.width;
+        float height = rect_tmp.size.height;
+        if (height > width) {
+            std::swap(height, width);
+        }
+
+        centerP = rect_tmp.center;
+
+        // 修正追踪的击打点及装甲板轮廓
+        centerP.x += ROI.x;
+        centerP.y += ROI.y;
+        for (auto & j : Pnt) {
+            j.x += ROI.x;
+            j.y += ROI.y;
+        }
+
+        // 更新ROI
+        for (int j = 0; j < 4; ++j) {
+            if (j == 0) ROI.width = getDistance(Pnt[j], Pnt[(j + 1) % 4]);
+            else if (j == 1) ROI.height = getDistance(Pnt[j], Pnt[(j + 1) % 4]);
+        }
+        if (ROI.width < ROI.height) {
+            std::swap(ROI.width, ROI.height);
+        }
+        ROI.width *= 2.5;
+        ROI.height *= 3.6;
+        ROI.x = centerP.x - ROI.width/2;
+        ROI.y = centerP.y - ROI.height/2;
+        if (ROI.x < 0) {
+            ROI.width += ROI.x;
+            ROI.x = 0;
+        }
+        if (ROI.y < 0) {
+            ROI.height += ROI.y;
+            ROI.y = 0;
+        }
     }
-    // 画出ROI在原图中范围
-    cv::rectangle(frame, ROI, cv::Scalar(0, 100, 100), 2);
-    // 显示图像
-    cv::imshow("ROI", frame);
-    // 显示ROI内图像
-    cv::imshow("ROI_inside", testImg);
+
+
+//    // debug
+//    // 打击点
+//    cv::circle(frame, centerP, 5, cv::Scalar(0, 0, 255), 2);
+//    // 画出装甲位置，并更新ROI
+//    for (int j = 0; j < 4; ++j) {
+//        cv::line(frame, Pnt[j], Pnt[(j + 1) % 4], cv::Scalar(0, 255, 255), 3);
+//    }
+//    // 画出ROI在原图中范围
+//    cv::rectangle(frame, ROI, cv::Scalar(0, 100, 100), 2);
+//    // 显示图像
+//    cv::imshow("ROI", frame);
+//    // 显示ROI内图像
+//    cv::imshow("ROI_inside", testImg);
 
     return true;
 }
@@ -380,7 +403,7 @@ void BigDickEnergy::debug() {
     cv::circle(sw, centerP, 5, cv::Scalar(0, 0, 255), 2);
 
     // 画大能量机关函数图
-    cv::Point2f pos((float)(st/10000 % 1800), 500 - (float)w*20000);
+    cv::Point2f pos((float)(st/10000 % 1800), 500 - (float)w*100000);
     cv::circle(functionSin, pos, 1, cv::Scalar (0, 255, 0));
     cv::imshow("sin", functionSin);
 

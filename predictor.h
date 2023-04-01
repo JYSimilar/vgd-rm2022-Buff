@@ -15,11 +15,11 @@
 class Predictor {
 private:
     int rounds = 0;
-    bool t = false;
+    bool tmp = false;
     cv::Mat functionSin = cv::Mat(600, 1800, CV_8UC3,cv::Scalar(0,0,0));
     const double PI = 3.1415926535897932384626;
 public:
-    double changeIntoLine(double angle);
+    std::vector<double> gaussNewton(std::vector<clock_t> t, std::vector<double> spd);
 };
 
 
